@@ -122,6 +122,8 @@ class App(QWidget):
             print("Неправильний шлях до файлу")
         except KeyError:
             print("Такої цільової змінної не існує")
+        except IndexError:
+            print("Такої колонки індексів не існує")
 
         # solver = CrossAnalysisSolver(
         #     probs_path=self.input_data.text(), cond_probs_path=self.input_cond_prob_file.text(),
