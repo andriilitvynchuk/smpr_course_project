@@ -1,0 +1,15 @@
+*.jpg
+*.jpeg
+*.avi
+*.pth
+*.json
+*.mkv
+*.zip
+*.png
+
+.git/
+.idea/
+**/__pycache__/
+.vscode/
+.mypy_cache/
+**/.ipynb_checkpoints/
