@@ -50,25 +50,32 @@ class App(QWidget):
         self.input_target_column = QLineEdit(up)
         self.input_target_column.setText("Close")
         self.input_target_column.setFixedWidth(100)
-        self.input_target_column.move(150, 45)
+        self.input_target_column.move(145, 45)
 
         label_index_column = QLabel("Колонка індексів", up)
         label_index_column.move(2, 90)
         self.index_column = QLineEdit(up)
         self.index_column.setText("0")
         self.index_column.setFixedWidth(30)
-        self.index_column.move(170, 86)
+        self.index_column.move(160, 86)
+
+        label_p = QLabel("P", up)
+        label_p.move(2, 135)
+        self.p = QLineEdit(up)
+        self.p.setText("10")
+        self.p.setFixedWidth(30)
+        self.p.move(20, 130)
+
+        label_q = QLabel("Q", up)
+        label_q.move(60, 135)
+        self.q = QLineEdit(up)
+        self.q.setText("10")
+        self.q.setFixedWidth(30)
+        self.q.move(80, 130)
 
         execute_button = QPushButton("Виконати", up)
         execute_button.move(450, 130)
         execute_button.clicked.connect(self.execute)
-
-        # value = QLabel("Інтегральний коефіціент достовірності", up)
-        # value.move(2, 180)
-        # self.value = QLineEdit(up)
-        # # self.value.setText("10000")
-        # self.value.setFixedWidth(100)
-        # self.value.move(365, 177)
 
         table_frame = QFrame(self)
         table_frame.setFrameShape(QFrame.StyledPanel)
@@ -111,20 +118,25 @@ class App(QWidget):
         except ValueError:
             return None
 
-    def execute(self) -> NoReturn:
+    def execute(self) -> None:
         try:
             data: pd.DataFrame = pd.read_csv(
                 self.input_data.text(), index_col=App.text_to_int(self.index_column.text())
             )
-            target_variable: pd.Series = data[self.input_target_column.text()]
-            print(target_variable)
         except FileNotFoundError:
             print("Неправильний шлях до файлу")
-        except KeyError:
-            print("Такої цільової змінної не існує")
+            return
         except IndexError:
             print("Такої колонки індексів не існує")
+            return
 
+        try:
+            variable: pd.Series = data[self.input_target_column.text()]
+        except KeyError:
+            print("Такої цільової змінної не існує")
+            return
+
+        print(variable)
         # solver = CrossAnalysisSolver(
         #     probs_path=self.input_data.text(), cond_probs_path=self.input_cond_prob_file.text(),
         # )
