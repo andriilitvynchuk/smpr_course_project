@@ -1,7 +1,6 @@
 import sys
 from typing import NoReturn, Optional
 
-import numpy as np
 import pandas as pd
 
 # from backend import CrossAnalysisSolver
@@ -19,6 +18,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from models.dataset import create_ar_filter_table
 
 
 class App(QWidget):
