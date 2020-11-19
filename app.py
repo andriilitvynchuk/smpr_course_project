@@ -7,6 +7,7 @@ import pandas as pd
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QApplication,
+    QComboBox,
     QFileDialog,
     QFrame,
     QHeaderView,
@@ -20,11 +21,14 @@ from PyQt5.QtWidgets import (
 )
 
 from models.dataset import create_ar_filter_table
+from models.model import BestFilterFinder
 
 
 class App(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.model_name = "LinearRegression"
+        self.validation_percent_int = 5
         self.init_ui()
 
     def init_ui(self) -> NoReturn:
@@ -70,12 +74,34 @@ class App(QWidget):
         label_q = QLabel("Q", up)
         label_q.move(60, 135)
         self.q = QLineEdit(up)
-        self.q.setText("10")
         self.q.setFixedWidth(30)
         self.q.move(80, 130)
 
+        validation_percent_label = QLabel("Відсоток даних для валідації", up)
+        validation_percent_label.move(2, 180)
+        self.validation_percent = QLineEdit(up)
+        self.validation_percent.setText("5")
+        self.validation_percent.setFixedWidth(40)
+        self.validation_percent.move(255, 175)
+
+        model_label = QLabel("Модель", up)
+        model_label.move(450, 10)
+        model_name_box = QComboBox(up)
+        model_name_box.addItems(
+            [
+                "LinearRegression",
+                "RidgeRegression",
+                "LassoRegression",
+                "SVM",
+                "XGBoostRegression",
+                "RandomForestRegression",
+            ]
+        )
+        model_name_box.move(530, 7)
+        model_name_box.activated[str].connect(self.model_name_handler)
+
         execute_button = QPushButton("Виконати", up)
-        execute_button.move(450, 130)
+        execute_button.move(550, 230)
         execute_button.clicked.connect(self.execute)
 
         table_frame = QFrame(self)
@@ -119,6 +145,19 @@ class App(QWidget):
         except ValueError:
             return None
 
+    def model_name_handler(self, value: str) -> NoReturn:
+        self.model_name = value
+
+    @staticmethod
+    def percent_handler(value: str) -> float:
+        int_value = int(value)
+        if 0 < int_value <= 1:
+            return value
+        elif 0 < int_value <= 100:
+            return int_value * 0.01
+        else:
+            raise ValueError("Такий відсоток не підтримується")
+
     def execute(self) -> None:
         try:
             data: pd.DataFrame = pd.read_csv(
@@ -137,7 +176,13 @@ class App(QWidget):
             print("Такої цільової змінної не існує")
             return
 
-        print(variable)
+        try:
+            self.validation_percent_int = App.percent_handler(self.validation_percent.text())
+        except ValueError:
+            print("Такий відсоток не підтримується")
+
+        print(self.validation_percent_int)
+        model = BestFilterFinder(model_name=self.model_name, validation_percent=self.validation_percent_int)
         # solver = CrossAnalysisSolver(
         #     probs_path=self.input_data.text(), cond_probs_path=self.input_cond_prob_file.text(),
         # )
