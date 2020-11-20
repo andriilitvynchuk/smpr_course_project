@@ -29,3 +29,9 @@ def create_ar_filter_table(
             values[(ma - 1) :, p + ma] = filter_variable[: (len(filter_variable) - ma + 1)]
 
     return pd.DataFrame(values, columns=columns, index=index)
+
+
+def create_next_day_price(variable: pd.Series) -> pd.Series:
+    variable[:-1] = variable[1:]
+    variable[-1] = np.nan
+    return variable
