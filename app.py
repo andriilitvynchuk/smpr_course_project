@@ -1,5 +1,5 @@
 import sys
-from typing import NoReturn, Optional
+from typing import Any, NoReturn, Optional
 
 import pandas as pd
 
@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from models.dataset import create_ar_filter_table
 from models.model import BestFilterFinder
 
 
@@ -28,7 +27,7 @@ class App(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.model_name = "LinearRegression"
-        self.validation_percent_int = 5
+        self.validation_percent_int: float = 5
         self.init_ui()
 
     def init_ui(self) -> NoReturn:
@@ -139,11 +138,11 @@ class App(QWidget):
             self.input_data.setText(target_path)
 
     @staticmethod
-    def text_to_int(text: str) -> Optional[int]:
+    def text_to_int(text: str, default: Optional[Any] = None) -> Optional[Any]:
         try:
             return int(text)
         except ValueError:
-            return None
+            return default
 
     def model_name_handler(self, value: str) -> NoReturn:
         self.model_name = value
@@ -152,7 +151,7 @@ class App(QWidget):
     def percent_handler(value: str) -> float:
         int_value = int(value)
         if 0 < int_value <= 1:
-            return value
+            return int_value
         elif 0 < int_value <= 100:
             return int_value * 0.01
         else:
@@ -183,6 +182,9 @@ class App(QWidget):
 
         print(self.validation_percent_int)
         model = BestFilterFinder(model_name=self.model_name, validation_percent=self.validation_percent_int)
+        model.grid_search_moving_average(
+            variable=variable, q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
+        )
         # solver = CrossAnalysisSolver(
         #     probs_path=self.input_data.text(), cond_probs_path=self.input_cond_prob_file.text(),
         # )
