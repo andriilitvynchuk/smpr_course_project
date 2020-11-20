@@ -2,7 +2,7 @@ import multiprocessing as mp
 from collections import namedtuple
 from functools import partial
 from itertools import product
-from typing import Iterable, List, NoReturn, Optional
+from typing import Callable, Iterable, List, NoReturn, Optional
 
 import pandas as pd
 from sklearn.base import BaseEstimator
@@ -25,6 +25,7 @@ MODEL_MAPPING = {
     "RandomForestRegression": RandomForestRegressor(n_jobs=-1),
 }
 MovingAverageGridParams = namedtuple("MovingAverageGridParams", ["q", "moving_average", "p"])
+FinalMetrics = namedtuple("FinalMetrics", ["mae", "mse", "r2"])
 
 
 class BestFilterFinder:
@@ -37,16 +38,20 @@ class BestFilterFinder:
         return MODEL_MAPPING.get(self._model_name, LinearRegression())
 
     @staticmethod
-    def print_scores(y_true: Iterable, y_predict: Iterable, prefix: str = "") -> NoReturn:
+    def get_scores(y_true: Iterable, y_predict: Iterable) -> FinalMetrics:
         mae = mean_absolute_error(y_true, y_predict)
         mse = mean_squared_error(y_true, y_predict)
         r2 = r2_score(y_true, y_predict)
-        print(f"{prefix} MAE: {mae:4f} MSE: {mse:.4f}, R2-score: {r2:.4f}")
+        return FinalMetrics(mae=mae, mse=mse, r2=r2)
+
+    @staticmethod
+    def get_moving_average_filter(variable: pd.Series, grid_params: MovingAverageGridParams) -> pd.Series:
+        return variable.rolling(window=grid_params.moving_average).mean()
 
     def _train_and_evaluate_moving_average(
-        self, grid_params: MovingAverageGridParams, variable: pd.Series
-    ) -> NoReturn:
-        filter_variable = variable.rolling(window=grid_params.moving_average).mean()
+        self, grid_params: MovingAverageGridParams, variable: pd.Series, get_filter_method: Callable
+    ) -> FinalMetrics:
+        filter_variable = get_filter_method(variable=variable, grid_params=grid_params)
         x = create_ar_filter_table(
             variable=variable, p=grid_params.p, q=grid_params.q, filter_variable=filter_variable, filter_name="ma"
         )
@@ -65,11 +70,8 @@ class BestFilterFinder:
         model = self._load_model()
         model.fit(x_train, y_train)
         y_predict = model.predict(x_test)
-        BestFilterFinder.print_scores(
-            y_test,
-            y_predict,
-            prefix=f"p={grid_params.p} q={grid_params.q} moving_average={grid_params.moving_average}",
-        )
+        metrics = BestFilterFinder.get_scores(y_test, y_predict)
+        return metrics
 
     def grid_search_moving_average(self, variable: pd.Series, p: int, q: Optional[int]) -> NoReturn:
         q_range = range(1, min(int(len(variable) * 0.1), 105), 5)
@@ -80,9 +82,17 @@ class BestFilterFinder:
             all_variants.append(MovingAverageGridParams(q=q, moving_average=moving_average, p=p))
 
         with mp.Pool(processes=self._processes) as pool:
-            list(
+            all_metrics = list(
                 tqdm(
-                    pool.imap(partial(self._train_and_evaluate_moving_average, variable=variable), all_variants),
+                    pool.imap(
+                        partial(
+                            self._train_and_evaluate_moving_average,
+                            variable=variable,
+                            get_filter_method=BestFilterFinder.get_moving_average_filter,
+                        ),
+                        all_variants,
+                    ),
                     total=len(all_variants),
                 )
             )
+        print(sorted(zip(all_metrics, all_variants), key=lambda x: -x[0].mae, reverse=True)[:5])
