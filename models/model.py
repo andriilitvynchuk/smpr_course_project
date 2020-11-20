@@ -62,8 +62,6 @@ class BestFilterFinder:
 
         x_test, y_test = x_test.iloc[:, :-1], x_test.iloc[:, -1]
 
-        if not len(x_train):
-            print(grid_params)
         model = self._load_model()
         model.fit(x_train, y_train)
         y_predict = model.predict(x_test)
