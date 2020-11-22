@@ -6,6 +6,7 @@ from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from simdkalman import KalmanFilter
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Lasso, LinearRegression, Ridge
@@ -27,8 +28,9 @@ MODEL_MAPPING = {
 }
 MovingAverageGridParams = namedtuple("MovingAverageGridParams", ["q", "moving_average", "p"])
 ExpMovingAverageGridParams = namedtuple("ExpMovingAverageGridParams", ["q", "alpha", "p"])
+KalmanGridParams = namedtuple("KalmanGridParams", ["q", "p"])
 FinalMetrics = namedtuple("FinalMetrics", ["mae", "mse", "r2"])
-GridParams = Union[MovingAverageGridParams, ExpMovingAverageGridParams]
+GridParams = Union[MovingAverageGridParams, ExpMovingAverageGridParams, KalmanGridParams]
 GridSearchResult = Tuple[pd.Series, pd.Series, np.ndarray, GridParams, FinalMetrics]
 
 
@@ -57,6 +59,17 @@ class BestFilterFinder:
     @staticmethod
     def get_exp_moving_average_filter(variable: pd.Series, grid_params: ExpMovingAverageGridParams) -> pd.Series:
         return variable.ewm(alpha=grid_params.alpha).mean()
+
+    @staticmethod
+    def get_kalman_filter(variable: pd.Series, grid_params: KalmanGridParams) -> pd.Series:
+        kalman = KalmanFilter(
+            state_transition=np.array([[1, 1], [0, 1]]),
+            process_noise=np.diag([0.1, 0.01]),
+            observation_model=np.array([[1, 0]]),
+            observation_noise=1.0,
+        )
+        smoothed = kalman.smooth(variable)
+        return pd.Series(smoothed.states.mean[:, 0], index=variable.index)
 
     def _train_and_evaluate(
         self, grid_params: GridParams, variable: pd.Series, get_filter_method: Callable
@@ -131,4 +144,13 @@ class BestFilterFinder:
             all_variants=all_variants,
             variable=variable,
             get_filter_method=BestFilterFinder.get_exp_moving_average_filter,
+        )
+
+    def grid_search_kalman(self, variable: pd.Series, p: int, q: Optional[int]) -> GridSearchResult:
+        q_range = range(1, min(int(len(variable) * 0.1), 105), 5) if q is None else [q]
+        all_variants: List[GridParams] = []
+        for q in q_range:
+            all_variants.append(KalmanGridParams(q=q, p=p))
+        return self._grid_search(
+            all_variants=all_variants, variable=variable, get_filter_method=BestFilterFinder.get_kalman_filter
         )
