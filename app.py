@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -103,6 +104,10 @@ class App(QWidget):
         self.metric_name_box.addItems(["MAE", "MSE", "R2"])
         self.metric_name_box.move(670, 47)
         self.metric_name_box.activated[str].connect(self.metric_name_handler)
+
+        self.plot_checkbox = QCheckBox("Малювати графік", up)
+        self.plot_checkbox.setChecked(True)
+        self.plot_checkbox.move(450, 85)
 
         self.execute_button = QPushButton("Виконати", up)
         self.execute_button.move(550, 230)
@@ -209,29 +214,32 @@ class App(QWidget):
             y_test.index = pd.to_datetime(y_test.index)
         except ValueError:
             pass
-        fig, axs = plt.subplots(2, 1, figsize=(16, 16))
-        axs[0].plot(y_test.index, y_test, label="Правильні значення")
-        axs[0].plot(y_test.index, ma_filter, label=f"Moving Average з вікном = {ma_params.moving_average}")
-        axs[0].plot(y_test.index, exp_ma_filter, label=f"Exponential Moving Average з alpha = {exp_ma_params.alpha}")
-        axs[0].plot(y_test.index, kalman_filter, label=f"Kalman Filter")
-        axs[0].set_title("Візуалізація найкращих фільтрів")
-        axs[0].legend()
+        if self.plot_checkbox.isChecked():
+            fig, axs = plt.subplots(2, 1, figsize=(16, 16))
+            axs[0].plot(y_test.index, y_test, label="Правильні значення")
+            axs[0].plot(y_test.index, ma_filter, label=f"Moving Average з вікном = {ma_params.moving_average}")
+            axs[0].plot(
+                y_test.index, exp_ma_filter, label=f"Exponential Moving Average з alpha = {exp_ma_params.alpha}"
+            )
+            axs[0].plot(y_test.index, kalman_filter, label=f"Kalman Filter")
+            axs[0].set_title("Візуалізація найкращих фільтрів")
+            axs[0].legend()
 
-        axs[1].plot(y_test.index, y_test, label="Правильні значення")
-        axs[1].plot(
-            y_test.index,
-            ma_predict,
-            label=f"{self.model_name} та Moving Average з вікном = {ma_params.moving_average}",
-        )
-        axs[1].plot(
-            y_test.index,
-            exp_ma_predict,
-            label=f"{self.model_name} та Exponential Moving Average з alpha = {exp_ma_params.alpha}",
-        )
-        axs[1].plot(y_test.index, kalman_filter, label=f"{self.model_name} та Kalman Filter")
-        axs[1].set_title("Передбачення моделей, які використовують найкращі фільтри")
-        axs[1].legend()
-        plt.show()
+            axs[1].plot(y_test.index, y_test, label="Правильні значення")
+            axs[1].plot(
+                y_test.index,
+                ma_predict,
+                label=f"{self.model_name} та Moving Average з вікном = {ma_params.moving_average}",
+            )
+            axs[1].plot(
+                y_test.index,
+                exp_ma_predict,
+                label=f"{self.model_name} та Exponential Moving Average з alpha = {exp_ma_params.alpha}",
+            )
+            axs[1].plot(y_test.index, kalman_filter, label=f"{self.model_name} та Kalman Filter")
+            axs[1].set_title("Передбачення моделей, які використовують найкращі фільтри")
+            axs[1].legend()
+            plt.show()
 
 
 def main() -> NoReturn:
