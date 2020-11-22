@@ -2,6 +2,7 @@ import sys
 from typing import Any, NoReturn, Optional
 
 import pandas as pd
+from matplotlib import pyplot as plt
 
 # from backend import CrossAnalysisSolver
 from PyQt5.QtGui import QFont
@@ -200,28 +201,26 @@ class App(QWidget):
         y_test, ma_filter, ma_predict, ma_params, ma_metrics = model.grid_search_moving_average(
             variable=variable, q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
         )
-        print(ma_params, ma_metrics)
-        # solver = CrossAnalysisSolver(
-        #     probs_path=self.input_data.text(), cond_probs_path=self.input_cond_prob_file.text(),
-        # )
-        # try:
-        #     final_table, value = solver.solve(number_of_executions=int(self.number_of_executions.text()))
 
-        #     for i in range(final_table.shape[0]):  # pylint: disable=E1136
-        #         for j in range(2):
-        #             self.table_widget.setItem(i, j, QTableWidgetItem("%.3f" % final_table[i][j]))
-        #     for i in range(final_table.shape[0]):  # pylint: disable=E1136
-        #         for j in range(2, final_table.shape[1]):  # pylint: disable=E1136
-        #             main_part = "%.3f" % final_table[i][j]
-        #             if i != j - 2:
-        #                 delta = final_table[i][j] - final_table[i][1]
-        #                 sign = "+" if delta > 0 else "-"
-        #                 main_part += f" ({sign} {np.abs(delta):.3f})"
-        #             self.table_widget.setItem(i, j, QTableWidgetItem(main_part))
+        try:
+            y_test.index = pd.to_datetime(y_test.index)
+        except ValueError:
+            pass
+        fig, axs = plt.subplots(2, 1, figsize=(16, 16))
+        axs[0].plot(y_test.index, y_test, label="Правильні значення")
+        axs[0].plot(y_test.index, ma_filter, label=f"Moving average з вікном = {ma_params.moving_average}")
+        axs[0].set_title("Візуалізація найкращих фільтрів")
+        axs[0].legend()
 
-        #         self.value.setText(f"{value:.3f}")
-        # except ValueError:
-        #     print("Кількість ітерацій має бути цілим значенням")
+        axs[1].plot(y_test.index, y_test, label="Правильні значення")
+        axs[1].plot(
+            y_test.index,
+            ma_predict,
+            label=f"{self.model_name} та Moving average з вікном = {ma_params.moving_average}",
+        )
+        axs[1].set_title("Передбачення моделей, які використовують найкращі фільтри")
+        axs[1].legend()
+        plt.show()
 
 
 def main() -> NoReturn:
