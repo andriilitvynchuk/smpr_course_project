@@ -27,6 +27,7 @@ class App(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.model_name = "LinearRegression"
+        self.metric_name = "MAE"
         self.validation_percent_int: float = 5
         self.init_ui()
 
@@ -99,6 +100,13 @@ class App(QWidget):
         model_name_box.move(530, 7)
         model_name_box.activated[str].connect(self.model_name_handler)
 
+        metric_label = QLabel("Метрика для оптимізації", up)
+        metric_label.move(450, 50)
+        metric_name_box = QComboBox(up)
+        metric_name_box.addItems(["MAE", "MSE", "R2"])
+        metric_name_box.move(670, 47)
+        metric_name_box.activated[str].connect(self.metric_name_handler)
+
         execute_button = QPushButton("Виконати", up)
         execute_button.move(550, 230)
         execute_button.clicked.connect(self.execute)
@@ -147,6 +155,9 @@ class App(QWidget):
     def model_name_handler(self, value: str) -> NoReturn:
         self.model_name = value
 
+    def metric_name_handler(self, value: str) -> NoReturn:
+        self.metric_name = value
+
     @staticmethod
     def percent_handler(value: str) -> float:
         int_value = int(value)
@@ -181,7 +192,9 @@ class App(QWidget):
             print("Такий відсоток не підтримується")
 
         print(self.validation_percent_int)
-        model = BestFilterFinder(model_name=self.model_name, validation_percent=self.validation_percent_int)
+        model = BestFilterFinder(
+            model_name=self.model_name, metric_name=self.metric_name, validation_percent=self.validation_percent_int
+        )
         model.grid_search_moving_average(
             variable=variable, q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
         )

@@ -2,7 +2,7 @@ import multiprocessing as mp
 from collections import namedtuple
 from functools import partial
 from itertools import product
-from typing import Callable, Iterable, List, NoReturn, Optional
+from typing import Callable, Iterable, List, NoReturn, Optional, Tuple
 
 import pandas as pd
 from sklearn.base import BaseEstimator
@@ -29,9 +29,10 @@ FinalMetrics = namedtuple("FinalMetrics", ["mae", "mse", "r2"])
 
 
 class BestFilterFinder:
-    def __init__(self, model_name: str, validation_percent: float, processes: int = 10):
+    def __init__(self, model_name: str, metric_name: str, validation_percent: float, processes: int = 10):
         self._validation_percent = validation_percent
         self._model_name = model_name
+        self._metric_name = metric_name
         self._processes = processes
 
     def _load_model(self) -> BaseEstimator:
@@ -48,12 +49,12 @@ class BestFilterFinder:
     def get_moving_average_filter(variable: pd.Series, grid_params: MovingAverageGridParams) -> pd.Series:
         return variable.rolling(window=grid_params.moving_average).mean()
 
-    def _train_and_evaluate_moving_average(
+    def _train_and_evaluate(
         self, grid_params: MovingAverageGridParams, variable: pd.Series, get_filter_method: Callable
-    ) -> FinalMetrics:
+    ) -> Tuple[BaseEstimator, FinalMetrics]:
         filter_variable = get_filter_method(variable=variable, grid_params=grid_params)
         x = create_ar_filter_table(
-            variable=variable, p=grid_params.p, q=grid_params.q, filter_variable=filter_variable, filter_name="ma"
+            variable=variable, p=grid_params.p, q=grid_params.q, filter_variable=filter_variable
         )
         x["next_day_price"] = create_next_day_price(variable=variable)
 
@@ -71,7 +72,7 @@ class BestFilterFinder:
         model.fit(x_train, y_train)
         y_predict = model.predict(x_test)
         metrics = BestFilterFinder.get_scores(y_test, y_predict)
-        return metrics
+        return model, metrics
 
     def grid_search_moving_average(self, variable: pd.Series, p: int, q: Optional[int]) -> NoReturn:
         q_range = range(1, min(int(len(variable) * 0.1), 105), 5)
@@ -86,7 +87,7 @@ class BestFilterFinder:
                 tqdm(
                     pool.imap(
                         partial(
-                            self._train_and_evaluate_moving_average,
+                            self._train_and_evaluate,
                             variable=variable,
                             get_filter_method=BestFilterFinder.get_moving_average_filter,
                         ),
@@ -95,4 +96,5 @@ class BestFilterFinder:
                     total=len(all_variants),
                 )
             )
-        print(sorted(zip(all_metrics, all_variants), key=lambda x: -x[0].mae, reverse=True)[:5])
+        print(all_metrics[0][1]["mae"])
+        # print(sorted(zip(all_metrics, all_variants), key=lambda x: -x[0].mae, reverse=True)[:5])
