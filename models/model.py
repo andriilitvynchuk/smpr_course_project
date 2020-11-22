@@ -2,7 +2,7 @@ import multiprocessing as mp
 from collections import namedtuple
 from functools import partial
 from itertools import product
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -26,8 +26,10 @@ MODEL_MAPPING = {
     "RandomForestRegression": RandomForestRegressor(n_jobs=-1),
 }
 MovingAverageGridParams = namedtuple("MovingAverageGridParams", ["q", "moving_average", "p"])
+ExpMovingAverageGridParams = namedtuple("ExpMovingAverageGridParams", ["q", "alpha", "p"])
 FinalMetrics = namedtuple("FinalMetrics", ["mae", "mse", "r2"])
-GridSearchResult = Tuple[pd.Series, pd.Series, np.ndarray, MovingAverageGridParams, FinalMetrics]
+GridParams = Union[MovingAverageGridParams, ExpMovingAverageGridParams]
+GridSearchResult = Tuple[pd.Series, pd.Series, np.ndarray, GridParams, FinalMetrics]
 
 
 class BestFilterFinder:
@@ -52,8 +54,12 @@ class BestFilterFinder:
     def get_moving_average_filter(variable: pd.Series, grid_params: MovingAverageGridParams) -> pd.Series:
         return variable.rolling(window=grid_params.moving_average).mean()
 
+    @staticmethod
+    def get_exp_moving_average_filter(variable: pd.Series, grid_params: ExpMovingAverageGridParams) -> pd.Series:
+        return variable.ewm(alpha=grid_params.alpha).mean()
+
     def _train_and_evaluate(
-        self, grid_params: MovingAverageGridParams, variable: pd.Series, get_filter_method: Callable
+        self, grid_params: GridParams, variable: pd.Series, get_filter_method: Callable
     ) -> Tuple[np.ndarray, FinalMetrics]:
         filter_variable = get_filter_method(variable=variable, grid_params=grid_params)
         x = create_ar_filter_table(
@@ -78,7 +84,7 @@ class BestFilterFinder:
         return y_predict, metrics
 
     def _grid_search(
-        self, all_variants: List[MovingAverageGridParams], variable: pd.Series, get_filter_method: Callable
+        self, all_variants: List[GridParams], variable: pd.Series, get_filter_method: Callable
     ) -> GridSearchResult:
         with mp.Pool(processes=self._processes) as pool:
             results = list(
@@ -100,7 +106,7 @@ class BestFilterFinder:
         y_test = create_next_day_price(variable=variable).dropna()[
             int(len(variable) * (1 - self._validation_percent)) :
         ]
-        best_filter = self.get_moving_average_filter(variable=variable, grid_params=best_result[0]).loc[y_test.index]
+        best_filter = get_filter_method(variable=variable, grid_params=best_result[0]).loc[y_test.index]
         best_params, (best_predict, best_metrics) = best_result
         return y_test, best_filter, best_predict, best_params, best_metrics
 
@@ -108,9 +114,21 @@ class BestFilterFinder:
         q_range = range(1, min(int(len(variable) * 0.1), 105), 5) if q is None else [q]
         moving_average_range = range(1, min(int(len(variable) * 0.1), 105), 5)
 
-        all_variants: List[MovingAverageGridParams] = [MovingAverageGridParams(q=0, moving_average=0, p=p)]
+        all_variants: List[GridParams] = [MovingAverageGridParams(q=0, moving_average=0, p=p)]
         for q, moving_average in product(q_range, moving_average_range):
             all_variants.append(MovingAverageGridParams(q=q, moving_average=moving_average, p=p))
         return self._grid_search(
             all_variants=all_variants, variable=variable, get_filter_method=BestFilterFinder.get_moving_average_filter
+        )
+
+    def grid_search_exp_moving_average(self, variable: pd.Series, p: int, q: Optional[int]) -> GridSearchResult:
+        q_range = range(1, min(int(len(variable) * 0.1), 105), 5) if q is None else [q]
+        alpha_range = np.arange(0.01, 1, 0.04)
+        all_variants: List[GridParams] = []
+        for q, alpha in product(q_range, alpha_range):
+            all_variants.append(ExpMovingAverageGridParams(q=q, alpha=alpha, p=p))
+        return self._grid_search(
+            all_variants=all_variants,
+            variable=variable,
+            get_filter_method=BestFilterFinder.get_exp_moving_average_filter,
         )

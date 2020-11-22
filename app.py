@@ -181,7 +181,6 @@ class App(QWidget):
         except ValueError:
             print("Такий відсоток не підтримується")
 
-        print(self.validation_percent_int)
         model = BestFilterFinder(
             model_name=self.model_name,
             metric_name=self.metric_name.lower(),
@@ -189,10 +188,17 @@ class App(QWidget):
         )
         text = ""
         y_test, ma_filter, ma_predict, ma_params, ma_metrics = model.grid_search_moving_average(
-            variable=variable, q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
+            variable=variable.copy(), q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
         )
-        text += f"Moving Average: {ma_metrics} з параметрами q = {ma_params.q} та вікном = {ma_params.moving_average}"
+        text += (
+            f"Moving Average: {ma_metrics} з параметрами q = {ma_params.q} та вікном = {ma_params.moving_average}\n"
+        )
 
+        _, exp_ma_filter, exp_ma_predict, exp_ma_params, exp_ma_metrics = model.grid_search_exp_moving_average(
+            variable=variable.copy(), q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
+        )
+
+        text += f"Exponential Moving Average: {exp_ma_metrics} з параметрами q = {exp_ma_params.q} та alpha = {exp_ma_params.alpha}"
         self.output.setText(text)
         try:
             y_test.index = pd.to_datetime(y_test.index)
@@ -201,6 +207,7 @@ class App(QWidget):
         fig, axs = plt.subplots(2, 1, figsize=(16, 16))
         axs[0].plot(y_test.index, y_test, label="Правильні значення")
         axs[0].plot(y_test.index, ma_filter, label=f"Moving average з вікном = {ma_params.moving_average}")
+        axs[0].plot(y_test.index, exp_ma_filter, label=f"Exponential Moving average з alpha = {exp_ma_params.alpha}")
         axs[0].set_title("Візуалізація найкращих фільтрів")
         axs[0].legend()
 
@@ -209,6 +216,11 @@ class App(QWidget):
             y_test.index,
             ma_predict,
             label=f"{self.model_name} та Moving average з вікном = {ma_params.moving_average}",
+        )
+        axs[1].plot(
+            y_test.index,
+            exp_ma_predict,
+            label=f"{self.model_name} та Exponential Moving average з alpha = {exp_ma_params.alpha}",
         )
         axs[1].set_title("Передбачення моделей, які використовують найкращі фільтри")
         axs[1].legend()
