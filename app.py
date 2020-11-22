@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -87,8 +88,8 @@ class App(QWidget):
 
         model_label = QLabel("Модель", up)
         model_label.move(450, 10)
-        model_name_box = QComboBox(up)
-        model_name_box.addItems(
+        self.model_name_box = QComboBox(up)
+        self.model_name_box.addItems(
             [
                 "LinearRegression",
                 "RidgeRegression",
@@ -98,37 +99,30 @@ class App(QWidget):
                 "RandomForestRegression",
             ]
         )
-        model_name_box.move(530, 7)
-        model_name_box.activated[str].connect(self.model_name_handler)
+        self.model_name_box.move(530, 7)
+        self.model_name_box.activated[str].connect(self.model_name_handler)
 
         metric_label = QLabel("Метрика для оптимізації", up)
         metric_label.move(450, 50)
-        metric_name_box = QComboBox(up)
-        metric_name_box.addItems(["MAE", "MSE", "R2"])
-        metric_name_box.move(670, 47)
-        metric_name_box.activated[str].connect(self.metric_name_handler)
+        self.metric_name_box = QComboBox(up)
+        self.metric_name_box.addItems(["MAE", "MSE", "R2"])
+        self.metric_name_box.move(670, 47)
+        self.metric_name_box.activated[str].connect(self.metric_name_handler)
 
-        execute_button = QPushButton("Виконати", up)
-        execute_button.move(550, 230)
-        execute_button.clicked.connect(self.execute)
+        self.execute_button = QPushButton("Виконати", up)
+        self.execute_button.move(550, 230)
+        self.execute_button.clicked.connect(self.execute)
 
         table_frame = QFrame(self)
         table_frame.setFrameShape(QFrame.StyledPanel)
 
-        self.table_widget = QTableWidget(table_frame)
-        self.table_widget.resize(1800, 525)
-        self.table_widget.setRowCount(8)
-        self.table_widget.setColumnCount(10)
-        self.table_widget.move(0, 0)
-        header = self.table_widget.horizontalHeader()
-        for index in range(10):
-            header.setSectionResizeMode(index, QHeaderView.ResizeToContents)
-        for index in range(8):
-            self.table_widget.setVerticalHeaderItem(index, QTableWidgetItem(f"e{index + 1}"))
-        self.table_widget.setHorizontalHeaderItem(0, QTableWidgetItem(f"Середні оцінки \n ймовірностей експертів"))
-        self.table_widget.setHorizontalHeaderItem(1, QTableWidgetItem(f"Відкалібровані \n ймовірності"))
-        for index in range(8):
-            self.table_widget.setHorizontalHeaderItem(index + 2, QTableWidgetItem(f"Сценарій {index + 1}"))
+        self.output = QTextEdit(table_frame)
+        self.output.setReadOnly(True)
+        self.output.setLineWrapMode(QTextEdit.NoWrap)
+        self.output.setFixedWidth(1160)
+        self.output.setMinimumHeight(300)
+        self.output.setMaximumHeight(1000)
+        self.output.move(5, 5)
 
         vertical_layout = QVBoxLayout()
         vertical_layout.addWidget(up)
@@ -136,7 +130,7 @@ class App(QWidget):
         self.setLayout(vertical_layout)
 
         self.setGeometry(150, 150, 1200, 600)
-        self.setWindowTitle("Метод перехресного впливу")
+        self.setWindowTitle("Порівняння методів фільтрації")
         self.show()
 
     def open_input_data_dialog(self) -> NoReturn:
@@ -198,10 +192,13 @@ class App(QWidget):
             metric_name=self.metric_name.lower(),
             validation_percent=self.validation_percent_int,
         )
+        text = ""
         y_test, ma_filter, ma_predict, ma_params, ma_metrics = model.grid_search_moving_average(
             variable=variable, q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
         )
+        text += f"Moving Average: {ma_metrics} з параметрами q = {ma_params.q} та вікном = {ma_params.moving_average}"
 
+        self.output.setText(text)
         try:
             y_test.index = pd.to_datetime(y_test.index)
         except ValueError:
