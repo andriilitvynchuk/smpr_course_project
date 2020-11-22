@@ -2,7 +2,7 @@ import multiprocessing as mp
 from collections import namedtuple
 from functools import partial
 from itertools import product
-from typing import Callable, Iterable, List, NoReturn, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -27,6 +27,7 @@ MODEL_MAPPING = {
 }
 MovingAverageGridParams = namedtuple("MovingAverageGridParams", ["q", "moving_average", "p"])
 FinalMetrics = namedtuple("FinalMetrics", ["mae", "mse", "r2"])
+GridSearchResult = Tuple[pd.Series, pd.Series, np.ndarray, MovingAverageGridParams, FinalMetrics]
 
 
 class BestFilterFinder:
@@ -76,23 +77,14 @@ class BestFilterFinder:
         metrics = BestFilterFinder.get_scores(y_test, y_predict)
         return y_predict, metrics
 
-    def grid_search_moving_average(self, variable: pd.Series, p: int, q: Optional[int]) -> NoReturn:
-        q_range = range(1, min(int(len(variable) * 0.1), 105), 5) if q is None else [q]
-        moving_average_range = range(1, min(int(len(variable) * 0.1), 105), 5)
-
-        all_variants: List[MovingAverageGridParams] = [MovingAverageGridParams(q=0, moving_average=0, p=p)]
-        for q, moving_average in product(q_range, moving_average_range):
-            all_variants.append(MovingAverageGridParams(q=q, moving_average=moving_average, p=p))
-
+    def _grid_search(
+        self, all_variants: List[MovingAverageGridParams], variable: pd.Series, get_filter_method: Callable
+    ) -> GridSearchResult:
         with mp.Pool(processes=self._processes) as pool:
             results = list(
                 tqdm(
                     pool.imap(
-                        partial(
-                            self._train_and_evaluate,
-                            variable=variable,
-                            get_filter_method=BestFilterFinder.get_moving_average_filter,
-                        ),
+                        partial(self._train_and_evaluate, variable=variable, get_filter_method=get_filter_method,),
                         all_variants,
                     ),
                     total=len(all_variants),
@@ -111,3 +103,14 @@ class BestFilterFinder:
         best_filter = self.get_moving_average_filter(variable=variable, grid_params=best_result[0]).loc[y_test.index]
         best_params, (best_predict, best_metrics) = best_result
         return y_test, best_filter, best_predict, best_params, best_metrics
+
+    def grid_search_moving_average(self, variable: pd.Series, p: int, q: Optional[int]) -> GridSearchResult:
+        q_range = range(1, min(int(len(variable) * 0.1), 105), 5) if q is None else [q]
+        moving_average_range = range(1, min(int(len(variable) * 0.1), 105), 5)
+
+        all_variants: List[MovingAverageGridParams] = [MovingAverageGridParams(q=0, moving_average=0, p=p)]
+        for q, moving_average in product(q_range, moving_average_range):
+            all_variants.append(MovingAverageGridParams(q=q, moving_average=moving_average, p=p))
+        return self._grid_search(
+            all_variants=all_variants, variable=variable, get_filter_method=BestFilterFinder.get_moving_average_filter
+        )

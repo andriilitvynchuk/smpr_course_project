@@ -3,20 +3,15 @@ from typing import Any, NoReturn, Optional
 
 import pandas as pd
 from matplotlib import pyplot as plt
-
-# from backend import CrossAnalysisSolver
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
     QFileDialog,
     QFrame,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
