@@ -4,6 +4,7 @@ from functools import partial
 from itertools import product
 from typing import Callable, Iterable, List, NoReturn, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestRegressor
@@ -33,6 +34,7 @@ class BestFilterFinder:
         self._validation_percent = validation_percent
         self._model_name = model_name
         self._metric_name = metric_name
+        self._metric_maximize = self._metric_name == "r2"
         self._processes = processes
 
     def _load_model(self) -> BaseEstimator:
@@ -51,7 +53,7 @@ class BestFilterFinder:
 
     def _train_and_evaluate(
         self, grid_params: MovingAverageGridParams, variable: pd.Series, get_filter_method: Callable
-    ) -> Tuple[BaseEstimator, FinalMetrics]:
+    ) -> Tuple[np.ndarray, FinalMetrics]:
         filter_variable = get_filter_method(variable=variable, grid_params=grid_params)
         x = create_ar_filter_table(
             variable=variable, p=grid_params.p, q=grid_params.q, filter_variable=filter_variable
@@ -72,10 +74,10 @@ class BestFilterFinder:
         model.fit(x_train, y_train)
         y_predict = model.predict(x_test)
         metrics = BestFilterFinder.get_scores(y_test, y_predict)
-        return model, metrics
+        return y_predict, metrics
 
     def grid_search_moving_average(self, variable: pd.Series, p: int, q: Optional[int]) -> NoReturn:
-        q_range = range(1, min(int(len(variable) * 0.1), 105), 5)
+        q_range = range(1, min(int(len(variable) * 0.1), 105), 5) if q is None else [q]
         moving_average_range = range(1, min(int(len(variable) * 0.1), 105), 5)
 
         all_variants: List[MovingAverageGridParams] = [MovingAverageGridParams(q=0, moving_average=0, p=p)]
@@ -83,7 +85,7 @@ class BestFilterFinder:
             all_variants.append(MovingAverageGridParams(q=q, moving_average=moving_average, p=p))
 
         with mp.Pool(processes=self._processes) as pool:
-            all_metrics = list(
+            results = list(
                 tqdm(
                     pool.imap(
                         partial(
@@ -96,5 +98,16 @@ class BestFilterFinder:
                     total=len(all_variants),
                 )
             )
-        print(all_metrics[0][1]["mae"])
-        # print(sorted(zip(all_metrics, all_variants), key=lambda x: -x[0].mae, reverse=True)[:5])
+        sorted_results = sorted(
+            zip(all_variants, results),
+            key=lambda x: getattr(x[1][1], self._metric_name),
+            reverse=self._metric_maximize,
+        )
+        best_result = sorted_results[0]
+
+        y_test = create_next_day_price(variable=variable).dropna()[
+            int(len(variable) * (1 - self._validation_percent)) :
+        ]
+        best_filter = self.get_moving_average_filter(variable=variable, grid_params=best_result[0]).loc[y_test.index]
+        best_params, (best_predict, best_metrics) = best_result
+        return y_test, best_filter, best_predict, best_params, best_metrics

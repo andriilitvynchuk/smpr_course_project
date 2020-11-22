@@ -193,11 +193,14 @@ class App(QWidget):
 
         print(self.validation_percent_int)
         model = BestFilterFinder(
-            model_name=self.model_name, metric_name=self.metric_name, validation_percent=self.validation_percent_int
+            model_name=self.model_name,
+            metric_name=self.metric_name.lower(),
+            validation_percent=self.validation_percent_int,
         )
-        model.grid_search_moving_average(
+        y_test, ma_filter, ma_predict, ma_params, ma_metrics = model.grid_search_moving_average(
             variable=variable, q=App.text_to_int(self.q.text()), p=App.text_to_int(self.p.text(), default=1)
         )
+        print(ma_params, ma_metrics)
         # solver = CrossAnalysisSolver(
         #     probs_path=self.input_data.text(), cond_probs_path=self.input_cond_prob_file.text(),
         # )
